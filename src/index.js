@@ -1,19 +1,32 @@
-import axios from "axios";
-
-const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
-const CHAT_ID = process.env.TELEGRAM_CHAT_ID;
-
-async function sendTelegramMessage(message) {
-  const url = `https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`;
-
-  await axios.post(url, {
-    chat_id: CHAT_ID,
-    text: message
-  });
-}
+import fs from "fs";
+import { generateBlog } from "./gemini.js";
+import { sendMessage } from "./telegram.js";
 
 async function main() {
-  await sendTelegramMessage("🚀 Hello! Your GitHub automation is working.");
+  const topics = fs.readFileSync("topics.txt", "utf8")
+    .split("\n")
+    .map(t => t.trim())
+    .filter(Boolean);
+
+  if (topics.length === 0) {
+    await sendMessage("❌ No topics found in topics.txt");
+    return;
+  }
+
+  const topic = topics[0];
+
+  await sendMessage(`📝 Writing blog about:\n\n${topic}`);
+
+  const article = await generateBlog(topic);
+
+  await sendMessage(article.substring(0, 3500));
+
+  await sendMessage("✅ Blog generated successfully!");
 }
 
-main().catch(console.error);
+main().catch(async (err) => {
+  console.error(err);
+  try {
+    await sendMessage("❌ Error:\n" + err.message);
+  } catch {}
+});
